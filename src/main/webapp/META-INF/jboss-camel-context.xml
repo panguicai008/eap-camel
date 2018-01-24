@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  #%L
+  Wildfly Camel
+  %%
+  Copyright (C) 2013 - 2015 RedHat
+  %%
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+  #L%
+  -->
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:jdbc="http://www.springframework.org/schema/jdbc" 
+    xmlns:jms="http://www.springframework.org/schema/jms"
+    xmlns:amq="http://activemq.apache.org/schema/core"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="             http://www.springframework.org/schema/beans      http://www.springframework.org/schema/beans/spring-beans.xsd            http://camel.apache.org/schema/spring      http://camel.apache.org/schema/spring/camel-spring.xsd     http://www.springframework.org/schema/jdbc       http://www.springframework.org/schema/jdbc/spring-jdbc.xsd
+    http://www.springframework.org/schema/jms
+        http://www.springframework.org/schema/jms/spring-jms-4.0.xsd
+         http://activemq.apache.org/schema/core
+        http://activemq.apache.org/schema/core/activemq-core-5.8.0.xsd">
+    <bean class="org.test.MyBean" id="helloBean"/>
+    <bean class="org.test.case1.CmsDeptProcess" id="cmsDeptProcess"/>
+    <bean
+        class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer" id="propertyConfigurer">
+        <property name="locations">
+            <list>
+                <!-- 标准配置 -->
+                <!-- <value>classpath:*.properties</value> --><!-- error -->
+               <!--  <value>file:src/main/resources/amq.properties</value> --><!-- error -->
+                <value>file:///F:/fuse-workspace/eap-camel/src/main/resources/jdbc.properties</value>
+                <value>file:///F:/fuse-workspace/eap-camel/src/main/resources/amq.properties</value>
+            </list>
+        </property>
+    </bean>
+    <!--4 datasource  -->
+    <bean class="org.apache.commons.dbcp.BasicDataSource"
+        destroy-method="close" id="dataSourceA">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+    <bean class="org.apache.commons.dbcp.BasicDataSource"
+        destroy-method="close" id="dataSourceB">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+    <bean class="org.apache.commons.dbcp.BasicDataSource"
+        destroy-method="close" id="dataSourceC">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+    <bean class="org.apache.commons.dbcp.BasicDataSource"
+        destroy-method="close" id="dataSourceD">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+        <property name="url" value="${jdbc.url}"/>
+        <property name="username" value="${jdbc.username}"/>
+        <property name="password" value="${jdbc.password}"/>
+    </bean>
+    <bean class="org.apache.camel.component.sql.SqlComponent" id="sqlComponentA">
+        <property name="dataSource" ref="dataSourceA"/>
+    </bean>
+    <bean class="org.apache.camel.component.sql.SqlComponent" id="sqlComponentB">
+        <property name="dataSource" ref="dataSourceB"/>
+    </bean>
+    <bean class="org.apache.camel.component.sql.SqlComponent" id="sqlComponentC">
+        <property name="dataSource" ref="dataSourceC"/>
+    </bean>
+    <bean class="org.apache.camel.component.sql.SqlComponent" id="sqlComponentD">
+        <property name="dataSource" ref="dataSourceD"/>
+    </bean>
+    
+    <bean id="jms" class="org.apache.camel.component.jms.JmsComponent"> 
+		<property name="connectionFactory"> 
+		<bean class="org.apache.activemq.ActiveMQConnectionFactory"> 
+			<property name="brokerURL" value="${amq.url}" />
+			<property name="userName" value="${amq.userName}"/>
+    		<property name="password" value="${amq.password}"/>
+		</bean> 
+		</property> 
+	</bean> 
+	 <bean id="activemq" class="org.apache.activemq.camel.component.ActiveMQComponent"> 
+		<property name="brokerURL" value="${amq.url}" />
+		<property name="userName" value="${amq.userName}"/>
+    	<property name="password" value="${amq.password}"/>
+	</bean>  
+    <camelContext id="spring-context" xmlns="http://camel.apache.org/schema/spring">
+        <propertyPlaceholder id="placeholder" location="classpath:sql.properties"/>
+        <route id="_route1">
+            <from id="_from1" uri="direct:start"/>
+            <bean id="_bean1" ref="helloBean"/>
+        </route>
+        <route id="generateInsert">
+			<from uri="timer:foo?period=5s" />
+			<transform>
+				<method ref="cmsDeptProcess" method="generateNewCmsDept" />
+			</transform>
+			<to uri="sqlComponentA:{{insert.a_cms_dept}}" />
+			<log message="Inserted new cms_dept ${body[COMPANY_CODE]}" />
+		</route>
+        <route id="process">
+			<from uri="sqlComponentA:{{select.a_cms_dept}}?
+						consumer.onConsume={{update.a_cms_dept}}" />
+			<to uri="bean:cmsDeptProcess?method=processCmsDept" />
+			<log message="${body}" />
+			<log message="Updated new cms-dept "/>
+		</route>
+     
+       <route id="select">
+            <from id="_from3" uri="timer://kickoff?period=1s"/>
+            <setBody id="_setBody1">
+                <constant>select * from b_cms_dept</constant>
+            </setBody>
+            <!-- Failed to resolve endpoint: jdbc://dataSourceA due to: No component found with scheme: jdbc -->
+           <!--  <to id="_to1" uri="jdbc:dataSourceA"/> -->
+            <to id="_to2" uri="mock:result"/>
+       </route>
+        <route id="jms01">
+       		<from id="jms-test" uri="file:src/data"/>
+       		<to id="to1" uri="jms:queue:queue3?jmsMessageType=Text"/>
+       		<to id="to2" uri="jms:queue:queue4?jmsMessageType=Text"/>
+        </route>
+        
+    </camelContext>
+</beans>
